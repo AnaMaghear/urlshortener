@@ -1,55 +1,56 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
+	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/AnaMaghear/urlshortener/api/internal/config"
+	"github.com/AnaMaghear/urlshortener/api/internal/handlers"
+	"github.com/AnaMaghear/urlshortener/api/internal/middleware"
+	"github.com/AnaMaghear/urlshortener/api/internal/models"
 	"github.com/joho/godotenv"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func main() {
-	// 1. Load .env
+	// Load .env file
 	_ = godotenv.Load(".env")
 
-	// 2. Read env variables
-	port := getEnv("PORT", "8080")
-	dsn := getEnv("DB_DSN", "")
+	// Read config
+	cfg := config.Load()
 
-	if dsn == "" {
-		log.Fatal("DB_DSN is empty")
+	if cfg.DBDSN == "" {
+		log.Fatal("DB_DSN is empty in .env")
 	}
 
-	// 3. Connect to Postgres
-	db, err := sql.Open("pgx", dsn)
+	// Connect to Postgres using GORM
+	db, err := gorm.Open(postgres.Open(cfg.DBDSN), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Failed to open DB: %v", err)
-	}
-	defer db.Close()
-
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to connect to Postgres: %v", err)
+		log.Fatalf("Failed to connect to DB: %v", err)
 	}
 
-	log.Println("Connected to Postgres successfully")
+	// Auto-create tables
+	if err := db.AutoMigrate(&models.ShortURL{}, &models.ClickEvent{}); err != nil {
+		log.Fatalf("Failed to migrate DB: %v", err)
+	}
 
-	// 4. Simple health endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "ok")
+	log.Println("DB connected and tables created!")
+
+	rl := middleware.NewRateLimiter(10, time.Minute)
+	mux := http.NewServeMux()
+	rateLimitedHandler := rl.Middleware(mux)
+
+	mux.HandleFunc("/shorten", handlers.Shorten(db))
+	mux.HandleFunc("/analytics", handlers.Analytics(db))
+	mux.HandleFunc("/qr", handlers.QR(db))
+	mux.HandleFunc("/", handlers.RedirectHandler(db))
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
 	})
 
-	log.Printf("Server listening on :%s ...", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func getEnv(key, def string) string {
-	if val, ok := os.LookupEnv(key); ok {
-		return val
-	}
-	return def
+	log.Printf("Server running on port %s", cfg.Port)
+	http.ListenAndServe(":"+cfg.Port, rateLimitedHandler)
 }
