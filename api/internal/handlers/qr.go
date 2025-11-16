@@ -10,7 +10,7 @@ import (
 
 // QR returns a PNG QR code for a short URL.
 // Usage: GET http://localhost:8080/qr?code=ViNc94C
-func QR(db *gorm.DB) http.HandlerFunc {
+func QR(db *gorm.DB, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Only GET is allowed
 		if r.Method != http.MethodGet {
@@ -36,9 +36,7 @@ func QR(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		// Build the full short URL (the thing the QR will point to)
-		// For now we keep it simple:
-		shortURL := "http://localhost:8080/" + code
+		shortURL := baseURL + "/" + code
 
 		// Generate PNG bytes (256x256)
 		png, err := qrcode.Encode(shortURL, qrcode.Medium, 256)

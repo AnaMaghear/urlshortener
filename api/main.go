@@ -45,7 +45,7 @@ func main() {
 
 	mux.HandleFunc("/shorten", handlers.Shorten(db))
 	mux.HandleFunc("/analytics", handlers.Analytics(db))
-	mux.HandleFunc("/qr", handlers.QR(db))
+	mux.HandleFunc("/qr", handlers.QR(db, cfg.BaseURL))
 	mux.HandleFunc("/", handlers.RedirectHandler(db))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))

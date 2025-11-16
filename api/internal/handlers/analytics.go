@@ -50,7 +50,7 @@ func Analytics(db *gorm.DB) http.HandlerFunc {
 			Where("short_url_id = ?", short.ID).
 			Count(&totalClicks)
 
-		// 3Unique IPs
+		// Unique IPs
 		var uniqueIPs int64
 		db.Model(&models.ClickEvent{}).
 			Where("short_url_id = ?", short.ID).
