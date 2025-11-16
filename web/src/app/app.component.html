@@ -1,0 +1,209 @@
+<div class="app-shell">
+  <header class="hero">
+    <p class="hero__eyebrow">Transform Your Links!</p>
+    <h1>Share short links</h1>
+    <p class="hero__subtext">
+      Create custom URLs, set expiration rules, track analytics, and generate QR codes
+    </p>
+  </header>
+
+  <main class="content">
+    <section class="panel panel--primary">
+      <div class="panel__header">
+        <div>
+          <h2>Shorten a URL</h2>
+          <p>Create custom links, QR codes, and analytics.</p>
+        </div>
+      </div>
+
+      @if (errorMessage()) {
+        <div class="alert alert-danger" role="alert">
+          {{ errorMessage() }}
+        </div>
+      }
+
+      <form class="grid gap-3" [formGroup]="shortenForm" (ngSubmit)="onShortenSubmit()">
+        <mat-form-field appearance="outline">
+          <mat-label>Original URL</mat-label>
+          <input matInput type="url" autocomplete="off" formControlName="url" placeholder="https://your-long-url-here.com">
+          @if (urlControl?.hasError('required')) {
+            <mat-error>The original URL is required.</mat-error>
+          } @else if (urlControl?.hasError('pattern')) {
+            <mat-error>Please enter a valid URL.</mat-error>
+          }
+        </mat-form-field>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <mat-form-field appearance="outline" class="w-100">
+              <mat-label>Custom code (optional)</mat-label>
+              <input matInput autocomplete="off" formControlName="custom" placeholder="my-cool-link">
+              <mat-hint>3-16 characters</mat-hint>
+              @if (customControl?.hasError('pattern')) {
+                <mat-error>Use 3-16 alphanumeric characters.</mat-error>
+              }
+            </mat-form-field>
+          </div>
+          <div class="col-md-6">
+            <mat-form-field appearance="outline" class="w-100">
+              <mat-label>Expiration date & time (optional)</mat-label>
+              <input
+                matInput
+                type="datetime-local"
+                formControlName="expiresAt"
+                placeholder="2025-05-14T12:30"
+                step="60">
+            </mat-form-field>
+          </div>
+        </div>
+
+        <button mat-flat-button type="submit" class="cta-button" [disabled]="submitting()">
+          @if (submitting()) {
+            <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
+          } @else {
+            Shorten URL
+          }
+        </button>
+      </form>
+    </section>
+
+    @if (displayedShortLink()) {
+      <section class="panel panel--result">
+        <div class="panel__header">
+          <div>
+            <h2>Short link ready!</h2>
+          </div>
+        </div>
+        <div class="result">
+          <div class="result__url">
+            <a [href]="displayedShortLink()?.url" target="_blank" rel="noopener">
+              {{ displayedShortLink()?.url }}
+            </a>
+            <p class="muted">Code: {{ displayedShortLink()?.code }}</p>
+            @if (expiresSelection) {
+              <p class="muted">Expires {{ expiresSelection | date: 'medium' }}</p>
+            }
+          </div>
+          <div class="result__actions">
+            <button mat-stroked-button type="button" (click)="copyShortUrl()">
+              <mat-icon fontIcon="content_copy"></mat-icon>
+              Copy
+            </button>
+            <a mat-stroked-button color="accent" [href]="displayedShortLink()?.url" target="_blank" rel="noopener">
+              <mat-icon fontIcon="open_in_new"></mat-icon>
+              Open
+            </a>
+          </div>
+        </div>
+      </section>
+    }
+
+    <div class="panel-grid">
+      <section class="panel panel--secondary">
+        <div class="panel__header">
+          <div>
+            <h2>Link Analytics</h2>
+            <p>Look up stats for any short code.</p>
+          </div>
+        </div>
+
+        <form class="analytics-form" [formGroup]="analyticsForm" (ngSubmit)="onAnalyticsSubmit()">
+          <mat-form-field appearance="outline" class="flex-grow-1">
+            <mat-label>Short code</mat-label>
+            <input matInput autocomplete="off" formControlName="code" placeholder="abc123">
+            @if (analyticsCodeControl?.hasError('required')) {
+              <mat-error>The code is required.</mat-error>
+            }
+          </mat-form-field>
+          <button mat-flat-button type="submit" class="analytics-button">
+            <mat-icon fontIcon="launch"></mat-icon>
+            Load Analytics
+          </button>
+        </form>
+
+        @if (analyticsError()) {
+          <div class="alert alert-warning" role="alert">
+            {{ analyticsError() }}
+          </div>
+        }
+
+        @if (analyticsLoading()) {
+          <div class="loading-state">
+            <mat-progress-spinner diameter="32" mode="indeterminate"></mat-progress-spinner>
+            <p class="mb-0">Fetching analytics…</p>
+          </div>
+        } @else if (analyticsResult()) {
+          <div class="stats-grid">
+            <div class="stat-card">
+              <small class="label">Total clicks</small>
+              <div class="value">{{ analyticsResult()?.total_clicks }}</div>
+            </div>
+            <div class="stat-card">
+              <small class="label">Unique visitors</small>
+              <div class="value">{{ analyticsResult()?.unique_ips }}</div>
+            </div>
+            <div class="stat-card destination-card">
+              <small class="label">Destination</small>
+              <div class="value text-truncate">
+                <a [href]="analyticsResult()?.original_url" target="_blank" rel="noopener">
+                  <mat-icon fontIcon="open_in_new"></mat-icon>
+                  {{ analyticsResult()?.original_url }}
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <section class="mt-4">
+            <h3 class="section-title">Clicks by country</h3>
+            @if (countryStats().length === 0) {
+              <p class="text-muted fst-italic">No click events yet.</p>
+            } @else {
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th scope="col">Country</th>
+                    <th scope="col" class="text-end">Clicks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (country of countryStats(); track country[0]) {
+                    <tr>
+                      <td>{{ country[0] }}</td>
+                      <td class="text-end">{{ country[1] }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </section>
+        } @else {
+          <p class="muted text-center mt-3">Create a link to view live analytics.</p>
+        }
+      </section>
+
+      <section class="panel panel--muted">
+        <div class="panel__header">
+          <div>
+            <h2>QR Code</h2>
+            <p>Share the link in the physical world.</p>
+          </div>
+        </div>
+        <div class="qr-card">
+          @if (qrError()) {
+            <div class="alert alert-warning w-100" role="alert">
+              {{ qrError() }}
+            </div>
+          }
+
+          @if (qrLoading()) {
+            <mat-progress-spinner diameter="40" mode="indeterminate"></mat-progress-spinner>
+          } @else if (qrDataUrl()) {
+            <img [src]="qrDataUrl()" width="192" height="192" alt="QR code preview">
+          } @else {
+            <p class="muted text-center mb-0">Analytics requests also load the QR code preview.</p>
+          }
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
