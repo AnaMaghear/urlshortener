@@ -42,6 +42,7 @@ func main() {
 	rl := middleware.NewRateLimiter(10, time.Minute)
 	mux := http.NewServeMux()
 	rateLimitedHandler := rl.Middleware(mux)
+	handler := middleware.CORSMiddleware(rateLimitedHandler)
 
 	mux.HandleFunc("/shorten", handlers.Shorten(db))
 	mux.HandleFunc("/analytics", handlers.Analytics(db))
@@ -52,5 +53,5 @@ func main() {
 	})
 
 	log.Printf("Server running on port %s", cfg.Port)
-	http.ListenAndServe(":"+cfg.Port, rateLimitedHandler)
+	http.ListenAndServe(":"+cfg.Port, handler)
 }
